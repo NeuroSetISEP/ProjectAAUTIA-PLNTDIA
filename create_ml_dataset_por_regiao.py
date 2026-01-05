@@ -51,7 +51,7 @@ def normalize_regiao(regiao):
     return regiao
 
 def load_and_aggregate_antibioticos():
-    """Carrega e agrega dados de antibióticos por Região + Período"""
+    """Carrega e agrega dados de antibióticos por Região + Período + Hospital"""
     print("Carregando dados de antibióticos...")
     df = pd.read_csv('antibioticos-carbapenemes.csv', sep=';')
 
@@ -59,12 +59,11 @@ def load_and_aggregate_antibioticos():
     df['Periodo'] = df['Período'].apply(normalize_period)
     df['Regiao'] = df['ARS'].apply(normalize_regiao)
 
-    # Agregar
-    df_agg = df.groupby(['Periodo', 'Regiao']).agg({
+    # Agregar por Hospital, Região e Período
+    df_agg = df.groupby(['Periodo', 'Regiao', 'Hospital']).agg({
         'DDD Consumidas de Carbapenemes': 'sum',
         'DDD Consumidas dos Restantes Antibióticos': 'sum',
-        'Peso': 'mean',
-        'Hospital': 'count'
+        'Peso': 'mean'
     }).reset_index()
 
 
@@ -72,7 +71,7 @@ def load_and_aggregate_antibioticos():
         'DDD Consumidas de Carbapenemes': 'Consumo_Carbapenemes',
         'DDD Consumidas dos Restantes Antibióticos': 'Consumo_Outros_Antibioticos',
         'Peso': 'Peso_Medio_Carbapenemes',
-        'Hospital': 'Num_Hospitais_Antibioticos'
+        'Hospital': 'Instituicao'
     })
 
     # Calcular total de antibióticos
@@ -87,24 +86,23 @@ def load_and_aggregate_antibioticos():
         df_agg['Consumo_Total_Antibioticos'] * 100
     ).round(2)
 
-    print(f"  - {len(df_agg)} registros agregados (Região + Período)")
+    print(f"  - {len(df_agg)} registros agregados (Hospital + Região + Período)")
     return df_agg
 
 def load_and_aggregate_urgencias():
-    """Carrega e agrega dados de urgências por Região + Período"""
+    """Carrega e agrega dados de urgências por Região + Período + Instituição"""
     print("Carregando dados de urgências...")
     df = pd.read_csv('atendimentos-por-tipo-de-urgencia-hospitalar-link.csv', sep=';')
 
     df['Periodo'] = df['Período'].apply(normalize_period)
     df['Regiao'] = df['Região']
 
-    df_agg = df.groupby(['Periodo', 'Regiao']).agg({
+    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituição']).agg({
         'Total Urgências': 'sum',
         'Urgências Geral': 'sum',
         'Urgências Pediátricas': 'sum',
         'Urgência Obstetricia': 'sum',
-        'Urgência Psiquiátrica': 'sum',
-        'Instituição': 'count'
+        'Urgência Psiquiátrica': 'sum'
     }).reset_index()
 
     df_agg = df_agg.rename(columns={
@@ -113,14 +111,14 @@ def load_and_aggregate_urgencias():
         'Urgências Pediátricas': 'Urgencias_Pediatricas',
         'Urgência Obstetricia': 'Urgencias_Obstetricia',
         'Urgência Psiquiátrica': 'Urgencias_Psiquiatrica',
-        'Instituição': 'Num_Hospitais_Urgencias'
+        'Instituição': 'Instituicao'
     })
 
-    print(f"  - {len(df_agg)} registros agregados (Região + Período)")
+    print(f"  - {len(df_agg)} registros agregados (Instituição + Região + Período)")
     return df_agg
 
 def load_and_aggregate_consultas():
-    """Carrega e agrega dados de consultas por Região + Período"""
+    """Carrega e agrega dados de consultas por Região + Período + Instituição"""
     print("Carregando dados de consultas...")
     df = pd.read_csv('01_sica_evolucao-mensal-das-consultas-medicas-hospitalares.csv', sep=';')
 
@@ -128,12 +126,11 @@ def load_and_aggregate_consultas():
     df['Periodo'] = df['Período'].apply(normalize_period)
     df['Regiao'] = df['Região']  # Já está no formato correto
 
-    # Agregar por Região + Período
-    df_agg = df.groupby(['Periodo', 'Regiao']).agg({
+    # Agregar por Região + Período + Instituição
+    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituição']).agg({
         'Nº Consultas Médicas Total': 'sum',
         'Nº Primeiras Consultas': 'sum',
-        'Nº Consultas Subsequentes': 'sum',
-        'Instituição': 'count'
+        'Nº Consultas Subsequentes': 'sum'
     }).reset_index()
 
     # Renomear colunas
@@ -141,10 +138,10 @@ def load_and_aggregate_consultas():
         'Nº Consultas Médicas Total': 'Total_Consultas',
         'Nº Primeiras Consultas': 'Primeiras_Consultas',
         'Nº Consultas Subsequentes': 'Consultas_Subsequentes',
-        'Instituição': 'Num_Hospitais_Consultas'
+        'Instituição': 'Instituicao'
     })
 
-    print(f"  - {len(df_agg)} registros agregados (Região + Período)")
+    print(f"  - {len(df_agg)} registros agregados (Instituição + Região + Período)")
     return df_agg
 
 def load_populacao():
@@ -189,18 +186,18 @@ def merge_datasets():
     df_final = df_antibioticos.copy()
 
     # Merge com urgências
-    print("Merging com urgências (por Região + Período)...")
+    print("Merging com urgências (por Instituição + Região + Período)...")
     df_final = df_final.merge(
         df_urgencias,
-        on=['Periodo', 'Regiao'],
+        on=['Periodo', 'Regiao', 'Instituicao'],
         how='outer'
     )
 
     # Merge com consultas
-    print("Merging com consultas (por Região + Período)...")
+    print("Merging com consultas (por Instituição + Região + Período)...")
     df_final = df_final.merge(
         df_consultas,
-        on=['Periodo', 'Regiao'],
+        on=['Periodo', 'Regiao', 'Instituicao'],
         how='outer'
     )
 
@@ -240,7 +237,7 @@ def merge_datasets():
 
     # Ordenar colunas de forma lógica
     colunas_ordem = [
-        'Periodo', 'Ano', 'Mes', 'Trimestre', 'Semestre', 'Regiao',
+        'Periodo', 'Ano', 'Mes', 'Trimestre', 'Semestre', 'Regiao', 'Instituicao',
         'Populacao_Regiao', 'Num_Municipios',
         'Consumo_Carbapenemes', 'Consumo_Outros_Antibioticos',
         'Consumo_Total_Antibioticos', 'Percentual_Carbapenemes',
@@ -250,7 +247,6 @@ def merge_datasets():
         'Total_Urgencias_Per_Capita',
         'Total_Consultas', 'Primeiras_Consultas', 'Consultas_Subsequentes',
         'Total_Consultas_Per_Capita',
-        'Num_Hospitais_Antibioticos', 'Num_Hospitais_Urgencias', 'Num_Hospitais_Consultas',
         'Peso_Medio_Carbapenemes'
     ]
 
@@ -258,8 +254,8 @@ def merge_datasets():
     colunas_existentes = [col for col in colunas_ordem if col in df_final.columns]
     df_final = df_final[colunas_existentes]
 
-    # Ordenar por região e período
-    df_final = df_final.sort_values(['Regiao', 'Periodo'])
+    # Ordenar por região, instituição e período
+    df_final = df_final.sort_values(['Regiao', 'Instituicao', 'Periodo'])
 
     print(f"\n=== Dataset final criado com {len(df_final)} registros ===")
     print(f"Colunas: {len(df_final.columns)}")
@@ -289,6 +285,7 @@ def main():
     print(f"Períodos: {df_final['Periodo'].min()} a {df_final['Periodo'].max()}")
     print(f"Períodos únicos: {df_final['Periodo'].nunique()}")
     print(f"Regiões únicas: {df_final['Regiao'].nunique()}")
+    print(f"Instituições únicas: {df_final['Instituicao'].nunique()}")
 
     print("\n--- Distribuição por Região ---")
     print(df_final['Regiao'].value_counts().sort_index())

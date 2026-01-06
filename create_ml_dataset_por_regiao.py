@@ -58,9 +58,10 @@ def load_and_aggregate_antibioticos():
     # Norm periodo e regiao
     df['Periodo'] = df['Período'].apply(normalize_period)
     df['Regiao'] = df['ARS'].apply(normalize_regiao)
+    df['Instituicao'] = df['Hospital'].apply(normalize_hospital_name)
 
-    # Agregar por Hospital, Região e Período
-    df_agg = df.groupby(['Periodo', 'Regiao', 'Hospital']).agg({
+    # Agregar por Hospital, Região e Período (usando nome normalizado)
+    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituicao']).agg({
         'DDD Consumidas de Carbapenemes': 'sum',
         'DDD Consumidas dos Restantes Antibióticos': 'sum',
         'Peso': 'mean'
@@ -70,8 +71,7 @@ def load_and_aggregate_antibioticos():
     df_agg = df_agg.rename(columns={
         'DDD Consumidas de Carbapenemes': 'Consumo_Carbapenemes',
         'DDD Consumidas dos Restantes Antibióticos': 'Consumo_Outros_Antibioticos',
-        'Peso': 'Peso_Medio_Carbapenemes',
-        'Hospital': 'Instituicao'
+        'Peso': 'Peso_Medio_Carbapenemes'
     })
 
     # Calcular total de antibióticos
@@ -96,8 +96,10 @@ def load_and_aggregate_urgencias():
 
     df['Periodo'] = df['Período'].apply(normalize_period)
     df['Regiao'] = df['Região']
+    df['Instituicao'] = df['Instituição'].apply(normalize_hospital_name)
 
-    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituição']).agg({
+
+    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituicao']).agg({
         'Total Urgências': 'sum',
         'Urgências Geral': 'sum',
         'Urgências Pediátricas': 'sum',
@@ -110,12 +112,80 @@ def load_and_aggregate_urgencias():
         'Urgências Geral': 'Urgencias_Geral',
         'Urgências Pediátricas': 'Urgencias_Pediatricas',
         'Urgência Obstetricia': 'Urgencias_Obstetricia',
-        'Urgência Psiquiátrica': 'Urgencias_Psiquiatrica',
-        'Instituição': 'Instituicao'
+        'Urgência Psiquiátrica': 'Urgencias_Psiquiatrica'
     })
 
     print(f"  - {len(df_agg)} registros agregados (Instituição + Região + Período)")
     return df_agg
+def normalize_hospital_name(hospital):
+    """
+    Normaliza nomes de hospitais/instituições para permitir match entre datasets
+    Remove variações de E.P.E., PPP, pontos, espaços extras, barras, preposições, acentos, abreviações, etc.
+    """
+    if pd.isna(hospital):
+        return hospital
+
+    hospital = str(hospital).strip()
+
+    # Remover acentos (ex: "Ângelo" → "Angelo", "Trás" → "Tras")
+    import unicodedata
+    hospital = unicodedata.normalize('NFD', hospital)
+    hospital = ''.join(char for char in hospital if unicodedata.category(char) != 'Mn')
+
+    # Normalizar hífens para espaços (ex: "Leiria-Pombal" → "Leiria Pombal")
+    hospital = hospital.replace('-', ' ')
+
+    # Normalizar abreviações de títulos ANTES de remover pontos (Prof., Dr., etc.)
+    hospital = re.sub(r'\bProf\.?\s', 'Professor ', hospital, flags=re.IGNORECASE)
+    hospital = re.sub(r'\bDr\.?\s', 'Doutor ', hospital, flags=re.IGNORECASE)
+    hospital = re.sub(r'\bDra\.?\s', 'Doutora ', hospital, flags=re.IGNORECASE)
+
+    # Remover variações de E.P.E. (incluindo formas malformadas como ".P. .")
+    hospital = re.sub(r',?\s*[E\.]\.?\s*[P\.]\.?\s*[E\.]\.?\s*$', '', hospital, flags=re.IGNORECASE)
+    hospital = re.sub(r',?\s*EPE\s*$', '', hospital, flags=re.IGNORECASE)
+
+    # Remover PPP
+    hospital = re.sub(r',?\s*PPP\s*$', '', hospital, flags=re.IGNORECASE)
+
+    # Normalizar barras (/) para espaços (ex: "Barreiro/Montijo" → "Barreiro Montijo")
+    hospital = hospital.replace('/', ' ')
+
+    # Remover preposições comuns que variam entre datasets
+    # Ex: "Centro Hospitalar do Médio Tejo" → "Centro Hospitalar Médio Tejo"
+    hospital = re.sub(r'\b(do|da|de|dos|das|e|os)\b', ' ', hospital, flags=re.IGNORECASE)
+
+    # Remover pontos restantes (podem sobrar de abreviações mal formatadas)
+    hospital = hospital.replace('.', '')
+
+    # Remover vírgulas, hífens e espaços múltiplos (IMPORTANTE: fazer por último)
+    hospital = re.sub(r'[,\-\s]+', ' ', hospital)
+    hospital = hospital.strip()
+
+    return hospital
+
+def infer_regiao_from_hospital(hospital):
+    """
+    Infere a região de saúde a partir do nome do hospital
+    quando o campo ARS não está preenchido
+    """
+    if pd.isna(hospital):
+        return None
+
+    hospital_lower = str(hospital).lower()
+
+    # Mapeamento baseado em palavras-chave nos nomes dos hospitais
+    if any(palavra in hospital_lower for palavra in ['lisboa', 'lvt', 'cascais', 'amadora', 'sintra', 'loures', 'oeiras', 'almada', 'seixal', 'setúbal', 'setubal', 'barreiro', 'montijo', 'santarém', 'santarem', 'leiria', 'tomar', 'tejo', 'oeste']):
+        return 'Região de Saúde LVT'
+    elif any(palavra in hospital_lower for palavra in ['porto', 'braga', 'guimarães', 'guimaraes', 'gaia', 'espinho', 'matosinhos', 'vila nova', 'penafiel', 'amarante', 'maia', 'aveiro', 'aveiro', 'póvoa', 'povoa', 'varzim', 'santo antónio', 'antonio', 'são joão', 'sao joao', 'nordeste', 'bragança', 'braganca', 'trás', 'tras', 'douro', 'minho', 'barcelos', 'esposende', 'ave', 'tâmega', 'tamega', 'sousa']):
+        return 'Região de Saúde Norte'
+    elif any(palavra in hospital_lower for palavra in ['coimbra', 'viseu', 'guarda', 'castelo branco', 'figueira', 'foz', 'aveiro', 'cova da beira', 'baixo vouga', 'baixo mondego', 'dão', 'dao', 'lafões', 'lafoes']):
+        return 'Região de Saúde do Centro'
+    elif any(palavra in hospital_lower for palavra in ['évora', 'evora', 'beja', 'portalegre', 'alentejo', 'santiago do cacém', 'cacem']):
+        return 'Região de Saúde do Alentejo'
+    elif any(palavra in hospital_lower for palavra in ['faro', 'portimão', 'portimao', 'albufeira', 'lagos', 'olhão', 'olhao', 'algarve']):
+        return 'Região de Saúde do Algarve'
+    else:
+        return None
 
 def load_and_aggregate_consultas():
     """Carrega e agrega dados de consultas por Região + Período + Instituição"""
@@ -125,9 +195,10 @@ def load_and_aggregate_consultas():
     # Normalizar período
     df['Periodo'] = df['Período'].apply(normalize_period)
     df['Regiao'] = df['Região']  # Já está no formato correto
+    df['Instituicao'] = df['Instituição'].apply(normalize_hospital_name)
 
-    # Agregar por Região + Período + Instituição
-    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituição']).agg({
+    # Agregar por Região + Período + Instituição (usando nome normalizado)
+    df_agg = df.groupby(['Periodo', 'Regiao', 'Instituicao']).agg({
         'Nº Consultas Médicas Total': 'sum',
         'Nº Primeiras Consultas': 'sum',
         'Nº Consultas Subsequentes': 'sum'
@@ -137,8 +208,7 @@ def load_and_aggregate_consultas():
     df_agg = df_agg.rename(columns={
         'Nº Consultas Médicas Total': 'Total_Consultas',
         'Nº Primeiras Consultas': 'Primeiras_Consultas',
-        'Nº Consultas Subsequentes': 'Consultas_Subsequentes',
-        'Instituição': 'Instituicao'
+        'Nº Consultas Subsequentes': 'Consultas_Subsequentes'
     })
 
     print(f"  - {len(df_agg)} registros agregados (Instituição + Região + Período)")
@@ -185,7 +255,7 @@ def merge_datasets():
     # Começar com antibióticos como base
     df_final = df_antibioticos.copy()
 
-    # Merge com urgências
+    # Merge com urgências (outer para manter todos os registros)
     print("Merging com urgências (por Instituição + Região + Período)...")
     df_final = df_final.merge(
         df_urgencias,
@@ -193,7 +263,7 @@ def merge_datasets():
         how='outer'
     )
 
-    # Merge com consultas
+    # Merge com consultas (outer para manter todos os registros)
     print("Merging com consultas (por Instituição + Região + Período)...")
     df_final = df_final.merge(
         df_consultas,
@@ -211,6 +281,32 @@ def merge_datasets():
         on=['Ano', 'Regiao'],
         how='left'
     )
+
+    # Processar valores vazios de forma inteligente
+    print("\nProcessando valores vazios...")
+    
+    # Para colunas de contagem, preencher NaN com 0 (ausência de registro = 0 eventos)
+    colunas_contagem = [
+        'Consumo_Carbapenemes', 'Consumo_Outros_Antibioticos', 'Consumo_Total_Antibioticos',
+        'Total_Urgencias', 'Urgencias_Geral', 'Urgencias_Pediatricas', 
+        'Urgencias_Obstetricia', 'Urgencias_Psiquiatrica',
+        'Total_Consultas', 'Primeiras_Consultas', 'Consultas_Subsequentes'
+    ]
+    
+    for col in colunas_contagem:
+        if col in df_final.columns:
+            df_final[col] = df_final[col].fillna(0)
+    
+    # Preencher Percentual_Carbapenemes e Peso_Medio_Carbapenemes
+    if 'Percentual_Carbapenemes' in df_final.columns:
+        df_final['Percentual_Carbapenemes'] = df_final['Percentual_Carbapenemes'].fillna(0)
+    
+    if 'Peso_Medio_Carbapenemes' in df_final.columns:
+        df_final['Peso_Medio_Carbapenemes'] = df_final['Peso_Medio_Carbapenemes'].fillna(0)
+    
+    # Criar coluna Carbapenemes_Nao_Consumidos (Outros Antibióticos)
+    # Esta coluna representa os antibióticos não-carbapenemes consumidos
+    df_final['Carbapenemes_Nao_Consumidos'] = df_final['Consumo_Outros_Antibioticos']
 
     # Criar features adicionais úteis para ML
     print("\nCriando features adicionais...")
@@ -235,11 +331,11 @@ def merge_datasets():
     df_final['Trimestre'] = ((df_final['Mes'] - 1) // 3) + 1
     df_final['Semestre'] = ((df_final['Mes'] - 1) // 6) + 1
 
-    # Ordenar colunas de forma lógica
+    # Ordenar colunas conforme solicitado
     colunas_ordem = [
         'Periodo', 'Ano', 'Mes', 'Trimestre', 'Semestre', 'Regiao', 'Instituicao',
         'Populacao_Regiao', 'Num_Municipios',
-        'Consumo_Carbapenemes', 'Consumo_Outros_Antibioticos',
+        'Consumo_Carbapenemes', 'Carbapenemes_Nao_Consumidos', 'Consumo_Outros_Antibioticos',
         'Consumo_Total_Antibioticos', 'Percentual_Carbapenemes',
         'Consumo_Carbapenemes_Per_Capita',
         'Total_Urgencias', 'Urgencias_Geral', 'Urgencias_Pediatricas',
@@ -259,6 +355,15 @@ def merge_datasets():
 
     print(f"\n=== Dataset final criado com {len(df_final)} registros ===")
     print(f"Colunas: {len(df_final.columns)}")
+    
+    # Estatísticas do dataset
+    print(f"\n--- Estatísticas do Dataset ---")
+    print(f"  Períodos: {df_final['Periodo'].min()} até {df_final['Periodo'].max()}")
+    print(f"  Regiões: {df_final['Regiao'].nunique()}")
+    print(f"  Instituições: {df_final['Instituicao'].nunique()}")
+    print(f"\n  Registros com dados de antibióticos: {(df_final['Consumo_Carbapenemes'] > 0).sum()}")
+    print(f"  Registros com dados de urgências: {(df_final['Total_Urgencias'] > 0).sum()}")
+    print(f"  Registros com dados de consultas: {(df_final['Total_Consultas'] > 0).sum()}")
 
     return df_final
 

@@ -303,10 +303,6 @@ def merge_datasets():
     
     if 'Peso_Medio_Carbapenemes' in df_final.columns:
         df_final['Peso_Medio_Carbapenemes'] = df_final['Peso_Medio_Carbapenemes'].fillna(0)
-    
-    # Criar coluna Carbapenemes_Nao_Consumidos (Outros Antibióticos)
-    # Esta coluna representa os antibióticos não-carbapenemes consumidos
-    df_final['Carbapenemes_Nao_Consumidos'] = df_final['Consumo_Outros_Antibioticos']
 
     # Criar features adicionais úteis para ML
     print("\nCriando features adicionais...")
@@ -335,7 +331,7 @@ def merge_datasets():
     colunas_ordem = [
         'Periodo', 'Ano', 'Mes', 'Trimestre', 'Semestre', 'Regiao', 'Instituicao',
         'Populacao_Regiao', 'Num_Municipios',
-        'Consumo_Carbapenemes', 'Carbapenemes_Nao_Consumidos', 'Consumo_Outros_Antibioticos',
+        'Consumo_Carbapenemes', 'Consumo_Outros_Antibioticos',
         'Consumo_Total_Antibioticos', 'Percentual_Carbapenemes',
         'Consumo_Carbapenemes_Per_Capita',
         'Total_Urgencias', 'Urgencias_Geral', 'Urgencias_Pediatricas',

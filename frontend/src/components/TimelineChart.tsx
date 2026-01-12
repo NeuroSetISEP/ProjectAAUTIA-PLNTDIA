@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useDistribution } from "@/context/DistributionContext";
-import { hospitals } from "@/data/mockData";
 
 const COLORS = [
   "hsl(199, 89%, 48%)",
@@ -15,7 +14,7 @@ const COLORS = [
 ];
 
 const TimelineChart = () => {
-  const { distributions } = useDistribution();
+  const { distributions, hospitals } = useDistribution();
   const [selectedHospital, setSelectedHospital] = useState<string>("all");
 
   const chartData = useMemo(() => {
@@ -38,8 +37,8 @@ const TimelineChart = () => {
     });
   }, [distributions, selectedHospital]);
 
-  const displayedHospitals = selectedHospital === "all" 
-    ? hospitals 
+  const displayedHospitals = selectedHospital === "all"
+    ? hospitals
     : hospitals.filter(h => h.id === selectedHospital);
 
   return (
@@ -65,11 +64,11 @@ const TimelineChart = () => {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis 
-                dataKey="period" 
+              <XAxis
+                dataKey="period"
                 tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
               />
-              <YAxis 
+              <YAxis
                 tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 tickFormatter={(value) => value.toLocaleString()}
               />

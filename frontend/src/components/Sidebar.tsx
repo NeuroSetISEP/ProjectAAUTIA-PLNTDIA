@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Calculator, Building2, Pill } from "lucide-react";
+import { LayoutDashboard, Calculator, Building2, Pill, TrendingUp } from "lucide-react";
 
 const Sidebar = () => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/distribute", icon: Calculator, label: "Calculate Distribution" },
     { to: "/hospitals", icon: Building2, label: "Hospitals" },
+    { to: "/metrics", icon: TrendingUp, label: "Model Metrics" },
   ];
 
   return (

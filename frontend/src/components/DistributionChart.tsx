@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { useDistribution } from "@/context/DistributionContext";
-import { hospitals } from "@/data/mockData";
 
 const COLORS = [
   "hsl(199, 89%, 48%)",
@@ -15,16 +14,16 @@ const COLORS = [
 ];
 
 const DistributionChart = () => {
-  const { distributions } = useDistribution();
+  const { distributions, hospitals } = useDistribution();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("all");
 
   const chartData = useMemo(() => {
-    const filteredDistributions = selectedPeriod === "all" 
-      ? distributions 
+    const filteredDistributions = selectedPeriod === "all"
+      ? distributions
       : distributions.filter(d => `${d.month}-${d.year}` === selectedPeriod);
 
     const hospitalTotals: Record<string, number> = {};
-    
+
     filteredDistributions.forEach(dist => {
       dist.distributions.forEach(d => {
         hospitalTotals[d.hospitalId] = (hospitalTotals[d.hospitalId] || 0) + d.quantity;
@@ -69,14 +68,14 @@ const DistributionChart = () => {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis 
-                dataKey="name" 
+              <XAxis
+                dataKey="name"
                 tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 angle={-45}
                 textAnchor="end"
                 height={80}
               />
-              <YAxis 
+              <YAxis
                 tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
                 tickFormatter={(value) => value.toLocaleString()}
               />

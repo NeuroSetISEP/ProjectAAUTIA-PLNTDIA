@@ -221,3 +221,4 @@ frontend/.turbo/
 # Logs
 frontend/*.log
 frontend/npm-debug.log*
+models

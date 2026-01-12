@@ -1,0 +1,5 @@
+Current rules :
+1.Fixed Inventory: the sum of the distribuition must not be more than the total stock (constraint) (Absolute)
+2.Clicnicar crisis : the hospital receive less than it needs High Penalty)
+3.Waste: the hospital receives more than needs (Low Penalty)
+

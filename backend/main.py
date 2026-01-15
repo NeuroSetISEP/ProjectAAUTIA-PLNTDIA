@@ -142,6 +142,8 @@ class HospitalData(BaseModel):
     allocated_amount: int
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    is_key_hospital: bool = False
+    safety_stock: int = 0
 
 class DistributionResult(BaseModel):
     period: str
@@ -256,6 +258,12 @@ class ModelManager:
                     avg_consultations = hospital_data['Total_Consultas'].mean()
                     avg_population = hospital_data['Populacao_Regiao'].mean()
 
+                    # Extrair tipos específicos de urgência para as regras de prioridade
+                    avg_urg_geral = hospital_data['Urgencias_Geral'].mean() if 'Urgencias_Geral' in hospital_data.columns else 0.0
+                    avg_urg_ped = hospital_data['Urgencias_Pediatricas'].mean() if 'Urgencias_Pediatricas' in hospital_data.columns else 0.0
+                    avg_urg_obs = hospital_data['Urgencias_Obstetricia'].mean() if 'Urgencias_Obstetricia' in hospital_data.columns else 0.0
+                    avg_urg_psi = hospital_data['Urgencias_Psiquiatrica'].mean() if 'Urgencias_Psiquiatrica' in hospital_data.columns else 0.0
+
                     # Se o consumo histórico é zero ou NaN, calcular um valor estimado baseado na atividade do hospital
                     if pd.isna(avg_consumption) or avg_consumption == 0.0:
                         # Estimar consumo baseado no tamanho/atividade do hospital
@@ -276,7 +284,12 @@ class ModelManager:
                         'longitude': longitude,
                         'urgencies': float(avg_urgencies) if not pd.isna(avg_urgencies) else 0.0,
                         'consultations': float(avg_consultations) if not pd.isna(avg_consultations) else 0.0,
-                        'population': float(avg_population) if not pd.isna(avg_population) else 0.0
+                        'population': float(avg_population) if not pd.isna(avg_population) else 0.0,
+                        # Campos detalhados para regras de prioridade
+                        'urg_geral': float(avg_urg_geral) if not pd.isna(avg_urg_geral) else 0.0,
+                        'urg_ped': float(avg_urg_ped) if not pd.isna(avg_urg_ped) else 0.0,
+                        'urg_obs': float(avg_urg_obs) if not pd.isna(avg_urg_obs) else 0.0,
+                        'urg_psi': float(avg_urg_psi) if not pd.isna(avg_urg_psi) else 0.0
                     }
 
             if not predictions:
@@ -398,46 +411,194 @@ async def optimize_distribution(request: DistributionRequest) -> List[Distributi
                 print(f"💊 Total necessário: {total_needed:.2f}, Stock disponível: {available_stock} ({request.stock_percentage*100:.1f}%)")
 
             # Otimizar distribuição
-            if model_manager.is_loaded and OptimizedDistributor:
+            if OptimizedDistributor:
                 print("🧬 Usando OptimizedDistributor...")
                 optimizer = OptimizedDistributor(context_map, available_stock)
                 allocation = optimizer.optimize()
                 optimization_score = optimizer.best_fitness_score
 
                 hospitals_data = []
+                key_indices = getattr(optimizer, 'key_hospitals_indices', [])
+                safety_stocks_map = getattr(optimizer, 'safety_stocks', {})
+
                 for i, hospital in enumerate(optimizer.hospitals):
                     hospitals_data.append(HospitalData(
                         institution=hospital,
                         region=context_map[hospital].get('region', 'Unknown'),
-                        predicted_consumption=round(context_map[hospital]['pred'], 2),
+                        predicted_consumption=round(optimizer.get_effective_pred(hospital), 2),
                         priority_weight=round(optimizer.priority_weights[hospital], 4),
                         allocated_amount=int(allocation[i]),
                         latitude=context_map[hospital].get('latitude'),
-                        longitude=context_map[hospital].get('longitude')
+                        longitude=context_map[hospital].get('longitude'),
+                        is_key_hospital=(i in key_indices),
+                        safety_stock=safety_stocks_map.get(hospital, 0)
                     ))
             else:
-                print("📊 Usando distribuição proporcional...")
-                # Distribuição proporcional baseada em dados reais
+                print("📊 Usando distribuição proporcional com garantia regional...")
+
+                # 0. Preparar dados e calcular Proxy Factor para fallback
+                ratios = [
+                    d['pred'] / d['urgencies'] for d in context_map.values()
+                    if d['pred'] > 0 and d.get('urgencies', 0) > 0
+                ]
+                proxy_factor = sum(ratios) / len(ratios) if ratios else 0.0
+
+                # Calcular predições efetivas (base)
+                effective_preds = {}
+                for h, d in context_map.items():
+                    if d['pred'] == 0 and d.get('urgencies', 0) > 0 and proxy_factor > 0:
+                        effective_preds[h] = proxy_factor * d.get('urgencies', 0)
+                    else:
+                        effective_preds[h] = d['pred']
+
+                # 1. Verificar Escassez Extrema e Consolidar Demanda
+                total_base_need = sum(effective_preds.values())
+                coverage = available_stock / total_base_need if total_base_need > 0 else 1.0
+
+                if coverage < 0.50:
+                    print(f"⚠️ Fallback: Escassez Extrema ({coverage:.1%}). Consolidando demanda.")
+                    # Agrupar por região
+                    regions_map = {}
+                    for h, d in context_map.items():
+                        reg = d.get('region', 'Unknown')
+                        if reg not in regions_map: regions_map[reg] = []
+                        regions_map[reg].append(h)
+
+                    for reg, h_list in regions_map.items():
+                        if not h_list: continue
+                        hub = max(h_list, key=lambda h: effective_preds[h])
+
+                        for h in h_list:
+                            if h == hub: continue
+                            urg_demand = context_map[h].get('urgencies', 0) * proxy_factor
+                            shift = min(urg_demand, effective_preds[h])
+                            effective_preds[h] -= shift
+                            effective_preds[hub] += shift
+
+                # 1.5 Calcular Safety Stocks (Dynamic Floor)
+                vals_cons = [v.get('consultations', 0) for v in context_map.values()]
+                vals_urg = [v.get('urgencies', 0) for v in context_map.values()]
+                max_cons = max(vals_cons) if vals_cons and max(vals_cons) > 0 else 1.0
+                max_urg = max(vals_urg) if vals_urg and max(vals_urg) > 0 else 1.0
+
+                safety_multiplier = 1.0 if coverage >= 0.8 else (0.5 if coverage >= 0.5 else 0.0)
+                MAX_SAFETY_FLOOR = 50
+
+                safety_stocks = {}
+                for h, d in context_map.items():
+                    size_factor = ((d.get('consultations', 0)/max_cons) + (d.get('urgencies', 0)/max_urg)) / 2
+                    safety_stocks[h] = int(MAX_SAFETY_FLOOR * size_factor * safety_multiplier)
+
+                # 2. Identificar hospitais chave (maior consumo efetivo por região)
+                key_hospitals_set = set()
+                region_max = {}
+                for h in context_map:
+                    r = context_map[h].get('region', 'Unknown')
+                    p = effective_preds[h]
+                    if r not in region_max or p > region_max[r][1]:
+                        region_max[r] = (h, p)
+                key_hospitals_set = {v[0] for v in region_max.values()}
+
+                # 3. Calcular alocações
+                allocations = {h: 0 for h in context_map}
+                rem_stock = available_stock
+
+                # Passo A: Garantir Safety Stock (se houver stock)
+                for h, floor in safety_stocks.items():
+                    give = min(floor, rem_stock)
+                    allocations[h] += give
+                    rem_stock -= give
+
+                # Passo B: Priorizar hospitais chave (com o que sobrou)
+                sorted_keys = sorted(list(key_hospitals_set), key=lambda x: effective_preds[x], reverse=True)
+                for h in sorted_keys:
+                    current_alloc = allocations[h]
+                    needed = int(effective_preds[h])
+                    remaining_need = max(0, needed - current_alloc)
+
+                    give = min(remaining_need, rem_stock)
+                    allocations[h] += give
+                    rem_stock -= give
+
+                # Passo C: Distribuir o resto proporcionalmente
+                others = [h for h in context_map]
+                remaining_needs = {h: max(0, effective_preds[h] - allocations[h]) for h in others}
+                total_others = sum(remaining_needs.values())
+
+                # Atualizar rem_stock após Passo B
+                current_allocated = sum(allocations.values())
+                rem_stock = available_stock - current_allocated
+
+                for h in others:
+                    if total_others > 0 and rem_stock > 0:
+                        prop = remaining_needs[h] / total_others
+                        give = int(rem_stock * prop)
+                        allocations[h] += give
+
+                # Passo D: Distribuir excedente final (se houver)
+                # Se sobrou stock após atender todas as necessidades, distribuir proporcionalmente ao tamanho
+                current_allocated = sum(allocations.values())
+                final_surplus = available_stock - current_allocated
+
+                if final_surplus > 0:
+                    total_pred_all = sum(effective_preds.values())
+                    if total_pred_all > 0:
+                        for h in allocations:
+                            bonus = int(final_surplus * (effective_preds[h] / total_pred_all))
+                            allocations[h] += bonus
+
                 hospitals_data = []
-                total_pred = sum([v['pred'] for v in context_map.values()])
 
-                for hospital, data in context_map.items():
-                    proportion = data['pred'] / total_pred if total_pred > 0 else 1/len(context_map)
-                    allocated = int(available_stock * proportion)
+                # Calcular máximos para normalização (consistente com ml_models.py)
+                max_consumption = max(effective_preds.values()) if effective_preds else 1.0
 
-                    # Calcular prioridade baseada em múltiplos fatores reais
-                    urgency_factor = data.get('urgencies', 0) / 10000  # Normalizar
-                    population_factor = data.get('population', 0) / 1000000  # Normalizar
-                    priority_weight = (proportion + urgency_factor * 0.3 + population_factor * 0.2) / 1.5
+                # Calcular scores de urgência para normalização
+                urgency_scores = []
+                for data in context_map.values():
+                    score = (
+                        data.get('urg_geral', 0) * 0.50 +
+                        data.get('urg_ped', 0) * 0.25 +
+                        data.get('urg_obs', 0) * 0.20 +
+                        data.get('urg_psi', 0) * 0.05
+                    )
+                    if score == 0 and data.get('urgencies', 0) > 0:
+                        score = data.get('urgencies', 0) * 0.25
+                    urgency_scores.append(score)
+
+                max_urgency_score = max(urgency_scores) if urgency_scores and max(urgency_scores) > 0 else 1.0
+
+                vals_cons = [v.get('consultations', 0) for v in context_map.values()]
+                max_consultations = max(vals_cons) if vals_cons and max(vals_cons) > 0 else 1.0
+
+                vals_pop = [v.get('population', 0) for v in context_map.values()]
+                max_population = max(vals_pop) if vals_pop and max(vals_pop) > 0 else 1.0
+
+                for i, (hospital, data) in enumerate(context_map.items()):
+                    allocated = allocations.get(hospital, 0)
+
+                    # Calcular prioridade usando as regras detalhadas (mesma lógica do ml_models.py)
+                    consumption_factor = effective_preds[hospital] / max_consumption
+                    urgency_factor = urgency_scores[i] / max_urgency_score
+                    consultation_factor = data.get('consultations', 0) / max_consultations
+                    population_factor = data.get('population', 0) / max_population
+
+                    priority_weight = (
+                        consumption_factor * 0.40 +
+                        urgency_factor * 0.30 +
+                        consultation_factor * 0.15 +
+                        population_factor * 0.15
+                    )
 
                     hospitals_data.append(HospitalData(
                         institution=hospital,
                         region=data.get('region', 'Unknown'),
-                        predicted_consumption=round(data['pred'], 2),
+                        predicted_consumption=round(effective_preds[hospital], 2),
                         priority_weight=round(priority_weight, 4),
                         allocated_amount=allocated,
                         latitude=data.get('latitude'),
-                        longitude=data.get('longitude')
+                        longitude=data.get('longitude'),
+                        is_key_hospital=(hospital in key_hospitals_set),
+                        safety_stock=safety_stocks.get(hospital, 0)
                     ))
 
                 # Score baseado na distribuição proporcional real

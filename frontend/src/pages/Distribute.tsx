@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Calculator, Check, Calendar, Wifi, WifiOff } from "lucide-react";
+import { Calculator, Check, Calendar, Wifi, WifiOff, Crown } from "lucide-react";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { months, generateDistributionData } from "@/data/mockData";
 import { apiService } from "@/services/api";
 
 type DistributionMode = "month" | "quarter" | "year";
-type SortKey = "institution" | "region" | "predicted_consumption" | "allocated_amount" | "priority_weight" | "coverage";
+type SortKey = "institution" | "region" | "predicted_consumption" | "allocated_amount" | "priority_weight" | "coverage" | "safety_stock";
 
 const Distribute = () => {
   const { hospitals, addDistribution, selectedMonth, setSelectedYear, selectedYear, isBackendConnected } = useDistribution();
@@ -157,6 +157,7 @@ const Distribute = () => {
           const mockHospitals = distributionPreview.map((h: any, index: number) => {
             const predictedConsumption = Math.round(Math.random() * 2000 + 500);
             const allocatedAmount = Math.round(h.amount * (stockPercentage / 100));
+            const safetyStock = Math.round(predictedConsumption * 0.05); // 5% mock safety stock
 
             return {
               id: h.hospitalId || `hospital-${index}`,
@@ -164,7 +165,9 @@ const Distribute = () => {
               region: h.region || "Mock Region",
               predicted_consumption: predictedConsumption,
               priority_weight: Math.random(),
-              allocated_amount: allocatedAmount
+              allocated_amount: allocatedAmount,
+              safety_stock: safetyStock,
+              is_key_hospital: index % 5 === 0 // Mock: every 5th hospital is a Key Hospital
             };
           });
 
@@ -227,9 +230,12 @@ const Distribute = () => {
     <Layout>
       <div className="p-8">
         <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Calcular a distribuição</h1>
-            <p className="text-muted-foreground mt-1">Selecione o seu período de distribuição.</p>
+          <div className="flex items-center gap-4">
+            
+            <div>
+              <h1 className="text-3xl font-bold">Calcular a distribuição</h1>
+              <p className="text-muted-foreground mt-1">Selecione o seu período de distribuição.</p>
+            </div>
           </div>
           <Badge variant={isBackendConnected ? "default" : "destructive"} className="flex items-center gap-2">
             {isBackendConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
@@ -401,6 +407,12 @@ const Distribute = () => {
                                 Consumo Previsto {sortKey === "predicted_consumption" && (sortOrder === "asc" ? "▲" : "▼")}
                               </TableHead>
                               <TableHead
+                                onClick={() => handleSort("safety_stock")}
+                                className="cursor-pointer select-none hover:bg-accent"
+                              >
+                                Safety Stock {sortKey === "safety_stock" && (sortOrder === "asc" ? "▲" : "▼")}
+                              </TableHead>
+                              <TableHead
                                 onClick={() => handleSort("allocated_amount")}
                                 className="cursor-pointer select-none hover:bg-accent"
                               >
@@ -429,11 +441,24 @@ const Distribute = () => {
                               return (
                                 <TableRow key={hospital.id || i}>
                                   <TableCell className="font-medium">
-                                    {hospital.institution}
+                                    <div className="flex items-center gap-2">
+                                      {hospital.institution}
+                                      {hospital.is_key_hospital && (
+                                        <div title="Hospital Chave da Região (Prioridade Máxima)">
+                                          <Crown className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                        </div>
+                                      )}
+                                    </div>
                                   </TableCell>
                                   <TableCell>{hospital.region}</TableCell>
                                   <TableCell>{hospital.predicted_consumption.toFixed(0)}</TableCell>
-                                  <TableCell className="font-semibold">
+                                  <TableCell className="text-muted-foreground">
+                                    {hospital.safety_stock}
+                                  </TableCell>
+                                  <TableCell
+                                    className={`font-semibold ${hospital.allocated_amount < hospital.safety_stock ? "text-red-500" : ""}`}
+                                    title={hospital.allocated_amount < hospital.safety_stock ? "Below Safety Stock" : undefined}
+                                  >
                                     {hospital.allocated_amount.toLocaleString()}
                                   </TableCell>
                                   <TableCell>

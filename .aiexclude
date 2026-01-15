@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.log
+# Any other large non-code folders

@@ -168,7 +168,12 @@ class MLPredictionModel:
             results[hospital] = {
                 'pred': predictions[i],
                 'region': row['Regiao'],
-                'urgencies': row.get('Total_Urgencias', 0),
+                # Detailed urgency types for weighted priority
+                'urg_geral': row.get('Urgencias_Geral', 0),
+                'urg_ped': row.get('Urgencias_Pediatricas', 0),
+                'urg_obs': row.get('Urgencias_Obstetricia', 0),
+                'urg_psi': row.get('Urgencias_Psiquiatrica', 0),
+                'urgencies': row.get('Total_Urgencias', 0), # Fallback
                 'consultations': row.get('Total_Consultas', 0),
                 'population': row.get('Populacao_Regiao', 0)
             }
@@ -235,7 +240,7 @@ class OptimizedDistributor:
     """
 
     def __init__(self, hospital_data: Dict[str, Dict], total_stock: int,
-                 generations: int = 200, population_size: int = 80):
+                 generations: int = 400, population_size: int = 100):
         self.hospital_data = hospital_data
         self.total_stock = total_stock
         self.generations = generations
@@ -245,43 +250,167 @@ class OptimizedDistributor:
         self.best_allocation = None
         self.best_fitness_score = None
         self.optimization_history = []
-        # --- NOVO: calcular fator médio pred/urgencies ANTES de priority_weights ---
+
+        # 1. Calcular Proxy Factor (relação Consumo/Urgência)
         ratios = [
             data['pred'] / data['urgencies']
             for data in self.hospital_data.values()
             if data['pred'] > 0 and data.get('urgencies', 0) > 0
         ]
         self.proxy_factor = np.mean(ratios) if ratios else 0.0
-        self.priority_weights = self._compute_priority_weights()
 
-    def _get_effective_pred(self, data):
-        pred = data['pred']
-        urg = data.get('urgencies', 0)
-        if pred == 0 and urg > 0 and self.proxy_factor > 0:
-            return self.proxy_factor * urg
-        return pred
+        # 2. Calcular Predições Base (corrigindo zeros)
+        self.effective_predictions = {}
+        for h in self.hospitals:
+            data = self.hospital_data[h]
+            pred = data['pred']
+            urg = data.get('urgencies', 0)
+            if pred == 0 and urg > 0 and self.proxy_factor > 0:
+                self.effective_predictions[h] = self.proxy_factor * urg
+            else:
+                self.effective_predictions[h] = pred
+
+        # 3. Verificar Escassez Extrema e Consolidar Demanda
+        total_needed = sum(self.effective_predictions.values())
+        self.coverage_ratio = (total_stock / total_needed) if total_needed > 0 else 1.0
+        self.is_extreme_shortage = self.coverage_ratio < 0.50
+
+        if self.is_extreme_shortage:
+            print(f"⚠️ ESCASSEZ EXTREMA DETECTADA ({self.coverage_ratio:.1%}). Consolidando demanda nos hospitais chave.")
+            self._consolidate_regional_demand()
+
+        # NOVA LÓGICA: Dynamic Safety Stock
+        self.safety_stocks = self._calculate_safety_stocks()
+
+        # 4. Inicializar pesos e chaves
+        self.priority_weights = self._compute_priority_weights()
+        self.key_hospitals_indices = self._identify_key_hospitals()
+
+    def get_effective_pred(self, hospital: str) -> float:
+        return self.effective_predictions.get(hospital, 0.0)
+
+    def _identify_key_hospitals(self) -> List[int]:
+        """Identifica o maior hospital de cada região (baseado em previsão) para garantia de stock"""
+        region_map = {} # region -> (index, prediction)
+
+        for i, h in enumerate(self.hospitals):
+            data = self.hospital_data[h]
+            region = data.get('region', 'Unknown')
+            pred = self.get_effective_pred(h)
+
+            if region not in region_map:
+                region_map[region] = (i, pred)
+            else:
+                # Se este hospital tem maior previsão que o atual campeão da região
+                if pred > region_map[region][1]:
+                    region_map[region] = (i, pred)
+
+        # Retorna lista de índices dos hospitais chave
+        return [val[0] for val in region_map.values()]
+
+    def _consolidate_regional_demand(self):
+        """Move a demanda de urgência dos hospitais satélites para o Hub regional em caso de escassez"""
+        # Agrupar por região
+        regions = {}
+        for h in self.hospitals:
+            reg = self.hospital_data[h].get('region', 'Unknown')
+            if reg not in regions: regions[reg] = []
+            regions[reg].append(h)
+
+        for reg, hospitals in regions.items():
+            if not hospitals: continue
+            # Identificar Hub (maior predição base)
+            hub = max(hospitals, key=lambda h: self.effective_predictions[h])
+
+            for h in hospitals:
+                if h == hub: continue
+
+                # Calcular parcela de urgência (Life-Saving portion)
+                urgencies = self.hospital_data[h].get('urgencies', 0)
+                urgency_demand = urgencies * self.proxy_factor
+
+                # Não podemos mover mais do que a predição total do hospital
+                current_pred = self.effective_predictions[h]
+                shift_amount = min(urgency_demand, current_pred)
+
+                # Mover demanda: Hub assume a carga de urgência do satélite
+                self.effective_predictions[h] -= shift_amount
+                self.effective_predictions[hub] += shift_amount
+
+    def _calculate_safety_stocks(self) -> Dict[str, int]:
+        """Calcula stock de segurança baseado no tamanho do hospital e cobertura global"""
+        # Métricas de tamanho
+        vals_cons = [d.get('consultations', 0) for d in self.hospital_data.values()]
+        vals_urg = [d.get('urgencies', 0) for d in self.hospital_data.values()]
+
+        max_cons = max(vals_cons) if vals_cons and max(vals_cons) > 0 else 1.0
+        max_urg = max(vals_urg) if vals_urg and max(vals_urg) > 0 else 1.0
+
+        # Multiplicador dinâmico baseado na cobertura
+        if self.coverage_ratio >= 0.80:
+            multiplier = 1.0
+        elif self.coverage_ratio >= 0.50:
+            multiplier = 0.5
+        else:
+            multiplier = 0.0 # Desativa em escassez extrema para priorizar Hubs
+
+        safety_stocks = {}
+        # Base máxima de segurança (ex: 50 unidades para o maior hospital)
+        MAX_SAFETY_FLOOR = 50
+
+        for h in self.hospitals:
+            d = self.hospital_data[h]
+            # Fator de tamanho combinando Consultas e Urgências
+            size_factor = (
+                (d.get('consultations', 0) / max_cons) +
+                (d.get('urgencies', 0) / max_urg)
+            ) / 2
+
+            safety_stocks[h] = int(MAX_SAFETY_FLOOR * size_factor * multiplier)
+
+        return safety_stocks
 
     def _compute_priority_weights(self):
         weights = {}
-        consumptions = [self._get_effective_pred(data) for data in self.hospital_data.values()]
-        urgencies = [data.get('urgencies', 0) for data in self.hospital_data.values()]
+        consumptions = [self.get_effective_pred(h) for h in self.hospitals]
+
+        # Calculate weighted urgency score for each hospital
+        urgency_scores = []
+        for data in self.hospital_data.values():
+            score = (
+                data.get('urg_geral', 0) * 0.50 +
+                data.get('urg_ped', 0) * 0.25 +
+                data.get('urg_obs', 0) * 0.20 +
+                data.get('urg_psi', 0) * 0.05
+            )
+            # Fallback if specific types are missing but total exists
+            if score == 0 and data.get('urgencies', 0) > 0:
+                score = data.get('urgencies', 0) * 0.25 # Average weight
+            urgency_scores.append(score)
+
+        consultations = [data.get('consultations', 0) for data in self.hospital_data.values()]
         populations = [data.get('population', 0) for data in self.hospital_data.values()]
+
         max_consumption = max(consumptions) if max(consumptions) > 0 else 1
-        max_urgency = max(urgencies) if max(urgencies) > 0 else 1
+        max_urgency_score = max(urgency_scores) if max(urgency_scores) > 0 else 1
+        max_consultations = max(consultations) if max(consultations) > 0 else 1
         max_population = max(populations) if max(populations) > 0 else 1
-        for hospital in self.hospitals:
+
+        for i, hospital in enumerate(self.hospitals):
             data = self.hospital_data[hospital]
-            eff_pred = self._get_effective_pred(data)
+            eff_pred = self.get_effective_pred(hospital)
             if eff_pred == 0:
                 weights[hospital] = 0.0
                 continue
             consumption_factor = eff_pred / max_consumption
-            urgency_factor = data.get('urgencies', 0) / max_urgency
+            urgency_factor = urgency_scores[i] / max_urgency_score
+            consultation_factor = data.get('consultations', 0) / max_consultations
             population_factor = data.get('population', 0) / max_population
             priority = (
-                consumption_factor * 0.5 +
-                urgency_factor * 0.30 +
-                population_factor * 0.20
+                consumption_factor * 0.40 +  # Predicted Need
+                urgency_factor * 0.30 +      # Weighted Urgencies
+                consultation_factor * 0.15 + # Total Consultations
+                population_factor * 0.15     # Regional Population
             )
             weights[hospital] = priority
         total_weight = sum(weights.values())
@@ -299,13 +428,22 @@ class OptimizedDistributor:
         total_needs = 0.0
         for i, hospital in enumerate(self.hospitals):
             data = self.hospital_data[hospital]
-            eff_pred = self._get_effective_pred(data)
+            eff_pred = self.get_effective_pred(hospital)
             allocated = allocation[i]
             priority = self.priority_weights[hospital]
             if eff_pred == 0:
                 if allocated > 0:
                     total_error += allocated * 100.0
                 continue
+
+            # Check Safety Stock (Floor)
+            min_stock = self.safety_stocks.get(hospital, 0)
+            if allocated < min_stock:
+                deficit = min_stock - allocated
+                # Aumentar drasticamente a penalidade para evitar "quase lá" (faltando 1 ou 2)
+                # Multiplicador linear alto (2000) garante que cada unidade faltante custe muito caro
+                total_error += (deficit * 2000) + (deficit ** 2) * 100
+
             total_needs += eff_pred
             if allocated < eff_pred:
                 shortage = eff_pred - allocated
@@ -314,12 +452,17 @@ class OptimizedDistributor:
                     error = shortage_pct * priority * 100
                 else:
                     error = (shortage_pct ** 2) * priority * 500
+
+                # NOVA REGRA: Se for hospital chave da região, penalidade massiva se não estiver cheio
+                if i in self.key_hospitals_indices:
+                    # Penalidade extra severa para garantir stock total nestes hospitais
+                    error += (shortage_pct ** 2) * 5000
             else:
                 excess = allocated - eff_pred
                 excess_pct = excess / eff_pred
                 if excess_pct <= 0.20:
                     error = excess_pct * 10
-                elif excess_pct <= 0.20:
+                elif excess_pct <= 0.50:
                     error = excess_pct * 50
                 else:
                     error = (excess_pct ** 2) * 300
@@ -338,15 +481,50 @@ class OptimizedDistributor:
 
     def _create_initial_population(self) -> np.ndarray:
         population = []
-        predictions = np.array([self._get_effective_pred(self.hospital_data[h]) for h in self.hospitals])
-        total_predicted = np.sum(predictions)
-        if total_predicted > 0:
-            base_allocation = (predictions / total_predicted * self.total_stock).astype(int)
-        else:
-            base_allocation = np.zeros(len(self.hospitals), dtype=int)
+
+        # 1. Criar alocação base inteligente (Safety Stock + Proporcional)
+        base_allocation = np.zeros(self.num_hospitals, dtype=int)
+        remaining_stock = self.total_stock
+
+        # A. Garantir Safety Stock primeiro na população inicial
+        for i, h in enumerate(self.hospitals):
+            s_stock = self.safety_stocks.get(h, 0)
+            give = min(s_stock, remaining_stock)
+            base_allocation[i] = give
+            remaining_stock -= give
+
+        # B. Distribuir restante proporcionalmente à predição efetiva
+        if remaining_stock > 0:
+            predictions = np.array([self.get_effective_pred(h) for h in self.hospitals])
+            total_pred = np.sum(predictions)
+
+            if total_pred > 0:
+                proportions = predictions / total_pred
+                extra = (proportions * remaining_stock).astype(int)
+                base_allocation += extra
+
+                # Distribuir sobras de arredondamento para o maior hospital
+                current_total = np.sum(base_allocation)
+                diff = self.total_stock - current_total
+                if diff > 0:
+                    max_idx = np.argmax(predictions)
+                    base_allocation[max_idx] += diff
+            else:
+                # Se não há predições mas sobrou stock, alocar ao primeiro
+                base_allocation[0] += remaining_stock
+
+        # 2. Gerar população variando dessa base otimizada
         for _ in range(self.population_size):
-            noise = np.random.normal(0, 0.05, size=len(self.hospitals))
-            variation = np.clip(base_allocation * (1 + noise), 0, None).astype(int)
+            noise = np.random.normal(0, 0.05, size=self.num_hospitals)
+            variation = base_allocation.astype(float) * (1 + noise)
+            variation = np.maximum(variation, 0).astype(int)
+
+            # Reforçar safety stock na população inicial para evitar que o ruído o quebre
+            for i, h in enumerate(self.hospitals):
+                s_stock = self.safety_stocks.get(h, 0)
+                if variation[i] < s_stock:
+                    variation[i] = s_stock
+
             while np.sum(variation) > self.total_stock:
                 max_idx = np.argmax(variation)
                 if variation[max_idx] > 0:
@@ -357,15 +535,21 @@ class OptimizedDistributor:
     def optimize(self) -> List[int]:
         initial_population = self._create_initial_population()
         gene_space = []
+
+        # Expandir limite superior se houver excedente (coverage > 1.0)
+        # Garante que o GA possa alocar o excedente em vez de ficar preso no teto de 1.2x
+        upper_bound_mult = max(1.5, self.coverage_ratio * 2.0)
+
         for hospital in self.hospitals:
-            data = self.hospital_data[hospital]
-            eff_pred = self._get_effective_pred(data)
-            if eff_pred == 0:
-                gene_space.append({'low': 0, 'high': 0})
-            else:
-                min_alloc = int(eff_pred * 0.8)
-                max_alloc = int(eff_pred * 1.2)
-                gene_space.append({'low': min_alloc, 'high': max_alloc})
+            eff_pred = self.get_effective_pred(hospital)
+            safety = self.safety_stocks.get(hospital, 0)
+
+            # Limite inferior 0 permite ao fitness function penalizar faltas corretamente
+            # Limite superior deve acomodar: Predição expandida OU Safety Stock (o que for maior)
+            high = max(int(eff_pred * upper_bound_mult), int(safety * 2.0), 50)
+
+            gene_space.append({'low': 0, 'high': high})
+
         ga_instance = pygad.GA(
             num_generations=self.generations,
             num_parents_mating=self.population_size // 2,

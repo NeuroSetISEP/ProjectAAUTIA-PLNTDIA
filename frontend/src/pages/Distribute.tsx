@@ -1,4 +1,7 @@
 import { useState, useMemo } from "react";
+
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Calculator, Check, Calendar, Wifi, WifiOff, Crown } from "lucide-react";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,10 +18,52 @@ import { useDistribution } from "@/context/DistributionContext";
 import { months, generateDistributionData } from "@/data/mockData";
 import { apiService } from "@/services/api";
 
+
 type DistributionMode = "month" | "quarter" | "year";
 type SortKey = "institution" | "region" | "predicted_consumption" | "allocated_amount" | "priority_weight" | "coverage" | "safety_stock";
 
 const Distribute = () => {
+
+    // Exportação para PDF
+    const handleExportPDF = () => {
+      if (!distributionResults.length) return;
+
+      const doc = new jsPDF();
+      distributionResults.forEach((result, idx) => {
+        if (idx > 0) doc.addPage();
+        doc.setFontSize(16);
+        doc.text(`Distribuição: ${monthNumberToName(parseInt(result.period.split('-')[1]))} ${result.year}`, 14, 18);
+        doc.setFontSize(10);
+        doc.text(`Carbapenemes disponíveis: ${result.available_stock.toLocaleString()}`, 14, 26);
+
+        const tableData = (result.hospitals || []).map((h: any) => [
+          h.institution,
+          h.region,
+          h.predicted_consumption,
+          h.safety_stock,
+          h.allocated_amount,
+          `${(h.priority_weight * 100).toFixed(1)}%`,
+          h.predicted_consumption > 0 ? `${((h.allocated_amount / h.predicted_consumption) * 100).toFixed(0)}%` : "N/A"
+        ]);
+
+        autoTable(doc, {
+          head: [[
+            "Hospital",
+            "Região",
+            "Consumo Previsto",
+            "Safety Stock",
+            "Alocação",
+            "Prioridade",
+            "% Cobertura"
+          ]],
+          body: tableData,
+          startY: 32,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [22, 160, 133] },
+        });
+      });
+      doc.save("distribuicao.pdf");
+    };
   const { hospitals, addDistribution, selectedMonth, setSelectedYear, selectedYear, isBackendConnected } = useDistribution();
   const { toast } = useToast();
 
@@ -344,10 +389,11 @@ const Distribute = () => {
               </Button>
 
               {isCalculated && distributionResults.length > 0 && (
-                <Button onClick={handleSave} variant="outline" className="w-full">
-                  <Check className="w-4 h-4 mr-2" />
-                  Salvar Distribuição
-                </Button>
+                <div className="flex gap-2 w-full">
+                  <Button onClick={handleExportPDF} variant="secondary" className="w-full">
+                    Exportar PDF
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

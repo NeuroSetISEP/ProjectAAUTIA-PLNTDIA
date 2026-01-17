@@ -393,7 +393,7 @@ class OptimizedMLTrainer:
         ax.plot([0, max_val], [0, max_val], 'r--', lw=2, label='Predição Perfeita')
 
         ax.set_xlabel('Consumo Real', fontsize=12)
-        ax.set_ylabel('Consumo Predito', fontsize=12)
+        ax.set_ylabel('Consumo Previsto', fontsize=12)
         ax.set_title(f'Predições vs Real - {self.best_model_name}', fontsize=14, fontweight='bold')
         ax.legend()
         ax.grid(alpha=0.3)
@@ -403,7 +403,7 @@ class OptimizedMLTrainer:
         errors = y_test - y_pred
         ax.hist(errors, bins=50, edgecolor='black', alpha=0.7)
         ax.axvline(x=0, color='red', linestyle='--', lw=2, label='Erro Zero')
-        ax.set_xlabel('Erro (Real - Predito)', fontsize=12)
+        ax.set_xlabel('Erro (Real - Previsto)', fontsize=12)
         ax.set_ylabel('Frequência', fontsize=12)
         ax.set_title('Distribuição de Erros', fontsize=14, fontweight='bold')
         ax.legend()

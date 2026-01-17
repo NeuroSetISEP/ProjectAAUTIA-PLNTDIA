@@ -192,12 +192,15 @@ const ModelMetricsPage = () => {
         </Card>
         <Card>
             <CardHeader>
-        <CardDescription>
-        <p className="text-muted-foreground">
-            Avaliação de performance do modelo de previsão
-        </p>
-        </CardDescription>
-        </CardHeader>
+              <CardHeader>
+              <CardTitle>Visualização do Melhor Modelo Escolhido</CardTitle>
+              </CardHeader>
+            <CardDescription>
+            <p className="text-muted-foreground">
+                Gráficos comparativos dos modelos testados
+            </p>
+            </CardDescription>
+            </CardHeader>
         {/* Imagem do treinamento */}
         <div className="flex justify-center">
           <img

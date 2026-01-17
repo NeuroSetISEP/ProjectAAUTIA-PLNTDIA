@@ -7,6 +7,7 @@ import { DistributionProvider } from "@/context/DistributionContext";
 import Dashboard from "./pages/Dashboard";
 import Distribute from "./pages/Distribute";
 import Hospitals from "./pages/Hospitals";
+import ModelMetrics from "./pages/ModelMetrics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/distribute" element={<Distribute />} />
             <Route path="/hospitals" element={<Hospitals />} />
+            <Route path="/metrics" element={<ModelMetrics />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

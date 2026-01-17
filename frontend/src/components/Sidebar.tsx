@@ -1,19 +1,20 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Calculator, Building2, Pill } from "lucide-react";
+import { LayoutDashboard, Calculator, Building2, Pill, TrendingUp } from "lucide-react";
 
 const Sidebar = () => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/distribute", icon: Calculator, label: "Calculate Distribution" },
     { to: "/hospitals", icon: Building2, label: "Hospitals" },
+    { to: "/metrics", icon: TrendingUp, label: "Model Metrics" },
   ];
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Pill className="w-5 h-5 text-primary-foreground" />
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center">
+            <img src="./Logo.png" alt="logo" />
           </div>
           <div>
             <h1 className="font-bold text-sidebar-foreground">PharmaDist</h1>

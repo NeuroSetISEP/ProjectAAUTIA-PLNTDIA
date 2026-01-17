@@ -210,6 +210,8 @@ __marimo__/
 # Dependencies
 frontend/node_modules/
 
+node_modules/
+
 # Production builds
 frontend/dist/
 frontend/build/
@@ -221,3 +223,4 @@ frontend/.turbo/
 # Logs
 frontend/*.log
 frontend/npm-debug.log*
+models

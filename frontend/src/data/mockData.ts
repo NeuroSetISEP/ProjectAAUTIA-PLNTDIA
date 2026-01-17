@@ -15,23 +15,73 @@ export interface MonthlyDistribution {
 }
 
 export const hospitals: Hospital[] = [
-  { id: "h1", name: "Central Medical Center", allocationPercentage: 25 },
-  { id: "h2", name: "St. Mary's Hospital", allocationPercentage: 20 },
-  { id: "h3", name: "City General Hospital", allocationPercentage: 18 },
-  { id: "h4", name: "Regional Health Center", allocationPercentage: 15 },
-  { id: "h5", name: "University Medical", allocationPercentage: 12 },
-  { id: "h6", name: "Community Care Hospital", allocationPercentage: 10 },
+  {
+    id: "h1",
+    name: "Centro Hospitalar Universitário de Lisboa Norte, E.P.E.",
+    allocationPercentage: 15,
+  },
+  {
+    id: "h2",
+    name: "Centro Hospitalar Universitário de São João, E.P.E.",
+    allocationPercentage: 14,
+  },
+  {
+    id: "h3",
+    name: "Centro Hospitalar e Universitário de Coimbra, E.P.E.",
+    allocationPercentage: 13,
+  },
+  {
+    id: "h4",
+    name: "Hospital Garcia da Orta, E.P.E.",
+    allocationPercentage: 12,
+  },
+  {
+    id: "h5",
+    name: "Centro Hospitalar de Lisboa Ocidental, E.P.E.",
+    allocationPercentage: 11,
+  },
+  { id: "h6", name: "Hospital de Braga, E.P.E.", allocationPercentage: 10 },
+  {
+    id: "h7",
+    name: "Centro Hospitalar Universitário do Porto, E.P.E.",
+    allocationPercentage: 9,
+  },
+  {
+    id: "h8",
+    name: "Centro Hospitalar de Vila Nova de Gaia/ Espinho, E.P.E.",
+    allocationPercentage: 8,
+  },
+  {
+    id: "h9",
+    name: "Instituto Português de Oncologia, E.P.E. - Lisboa",
+    allocationPercentage: 8,
+  },
 ];
 
 export const months = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 export const generateDistributionData = (
   totalDrugs: number,
   hospitalsList: Hospital[]
-): { hospitalId: string; hospitalName: string; quantity: number; percentage: number }[] => {
+): {
+  hospitalId: string;
+  hospitalName: string;
+  quantity: number;
+  percentage: number;
+}[] => {
   return hospitalsList.map((hospital) => ({
     hospitalId: hospital.id,
     hospitalName: hospital.name,

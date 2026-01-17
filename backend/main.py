@@ -771,6 +771,26 @@ async def retrain_model(background_tasks: BackgroundTasks):
     background_tasks.add_task(retrain)
     return {"message": "Modelo será retreinado em background"}
 
+@app.get("/model/training-image-all-models")
+async def get_all_training_image():
+    """
+    Retorna a imagem de visualização do treinamento do modelo
+    """
+    from fastapi.responses import FileResponse
+
+    image_path = Path(__file__).parent.parent / "all_models_predictions.png"
+
+    if not image_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Imagem de treinamento não encontrada. Execute train_optimized_model.py primeiro."
+        )
+
+    return FileResponse(
+        path=str(image_path),
+        media_type="image/png",
+        filename="all_models_predictions.png"
+    )
 @app.get("/model/training-image")
 async def get_training_image():
     """

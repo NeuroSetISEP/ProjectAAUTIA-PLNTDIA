@@ -208,7 +208,28 @@ const ModelMetricsPage = () => {
           />
         </div>
         </Card>
+        <Card>
+            <CardHeader>
+              <CardHeader>
+              <CardTitle>Visualização dos Restantes Modelos</CardTitle>
+              </CardHeader>
+            <CardDescription>
+            <p className="text-muted-foreground">
+                Gráficos comparativos dos modelos testados
+            </p>
+            </CardDescription>
+            </CardHeader>
+        {/* Imagem dos modelos */}
+        <div className="flex justify-center">
+          <img
+            src="http://localhost:8000/model/training-image-all-models"
+            alt="Comparação dos Modelos"
+            className="rounded-lg border shadow-lg max-w-4xl w-full bg-white"
+            style={{ background: 'white' }}
+          />
+        </div>
 
+        </Card>
         {/* Interpretação das Métricas */}
         <Card>
           <CardHeader>

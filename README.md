@@ -7,7 +7,7 @@
 ### 🧠 **Backend Inteligente (Novo!)**
 
 - ✅ **API FastAPI** com endpoints RESTful
-- ✅ **Machine Learning** para predição de consumo
+- ✅ **Machine Learning** para previsão de consumo
 - ✅ **Algoritmo Genético** para otimização de distribuição
 - ✅ **Modo Híbrido**: Funciona com dados reais ou mock
 - ✅ **Health Checks** e monitoramento
@@ -22,7 +22,7 @@
 
 ### 📊 **Análise Avançada**
 
-- ✅ **Predição temporal** de consumo hospitalar
+- ✅ **Previsão temporal** de consumo hospitalar
 - ✅ **Otimização multiobjetivo** (necessidade vs desperdício)
 - ✅ **Priorização inteligente** baseada em urgências e população
 - ✅ **Visualização interativa** dos resultados
@@ -92,7 +92,7 @@ ProjectAAUTIA-PLNTDIA/
 
 ## 📡 Endpoints da API
 
-### 🔍 Predição
+### 🔍 Previsão
 
 ```http
 POST /predict
@@ -167,7 +167,7 @@ GET /hospitals
 ### 🤖 **IA Avançada**
 
 9. **Deep Learning**: Modelos mais sofisticados
-10. **Real-time**: Predições em tempo real
+10. **Real-time**: Previsões em tempo real
 11. **AutoML**: Retreinamento automático
 12. **Ensemble**: Combinação de múltiplos modelos
 

@@ -231,7 +231,7 @@ const Distribute = () => {
       <div className="p-8">
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            
+
             <div>
               <h1 className="text-3xl font-bold">Calcular a distribuição</h1>
               <p className="text-muted-foreground mt-1">Selecione o seu período de distribuição.</p>
@@ -364,7 +364,7 @@ const Distribute = () => {
               </CardTitle>
               <CardDescription>
                 {isBackendConnected
-                  ? "Distribuição otimizada baseada em predições ML e algoritmo genético"
+                  ? "Distribuição otimizada baseada em Previsões ML e algoritmo genético"
                   : "Preview baseado em dados simulados"}
               </CardDescription>
             </CardHeader>

@@ -214,7 +214,7 @@ class ModelManager:
             return False
 
     def get_real_prediction(self, month: int, year: int) -> Dict:
-        """Retorna predições baseadas em dados reais do CSV"""
+        """Retorna Previsões baseadas em dados reais do CSV"""
         try:
             df = pd.read_csv(self.data_path, delimiter=';')
 
@@ -293,7 +293,7 @@ class ModelManager:
                     }
 
             if not predictions:
-                raise ValueError("Nenhuma predição pôde ser gerada a partir dos dados")
+                raise ValueError("Nenhuma Previsão pôde ser gerada a partir dos dados")
 
             return predictions
 
@@ -371,7 +371,7 @@ async def predict_consumption(request: PredictionRequest) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na predição: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro na Previsão: {str(e)}")
 
 @app.post("/distribute")
 async def optimize_distribution(request: DistributionRequest) -> List[DistributionResult]:
@@ -387,7 +387,7 @@ async def optimize_distribution(request: DistributionRequest) -> List[Distributi
 
         for month in request.months:
             print(f"🔄 Processando mês {month}/{request.year}...")
-            # Obter predições para o mês
+            # Obter Previsões para o mês
             if model_manager.is_loaded:
                 context_map = model_manager.ml_model.predict_monthly(
                     month, request.year
@@ -443,7 +443,7 @@ async def optimize_distribution(request: DistributionRequest) -> List[Distributi
                 ]
                 proxy_factor = sum(ratios) / len(ratios) if ratios else 0.0
 
-                # Calcular predições efetivas (base)
+                # Calcular Previsões efetivas (base)
                 effective_preds = {}
                 for h, d in context_map.items():
                     if d['pred'] == 0 and d.get('urgencies', 0) > 0 and proxy_factor > 0:

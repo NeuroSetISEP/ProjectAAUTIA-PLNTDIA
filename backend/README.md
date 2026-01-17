@@ -4,7 +4,7 @@ API FastAPI para o sistema de distribuição otimizada de medicamentos.
 
 ## Funcionalidades
 
-- 🤖 **Previsão ML**: Predição de consumo de carbapenemes usando modelos avançados
+- 🤖 **Previsão ML**: Previsão de consumo de carbapenemes usando modelos avançados
 - 🧬 **Otimização Genética**: Distribuição otimizada usando algoritmos genéticos
 - 📊 **Analytics**: Estatísticas e insights dos hospitais
 - 🔄 **Modo Híbrido**: Funciona com ML real ou dados mock

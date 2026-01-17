@@ -114,7 +114,7 @@ class APIService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
@@ -146,9 +146,9 @@ class APIService {
     return this.request<{ status: string; model_status: string }>("/health");
   }
 
-  // Predição de consumo
+  // Previsão de consumo
   async predictConsumption(
-    request: PredictionRequest
+    request: PredictionRequest,
   ): Promise<PredictionResponse> {
     return this.request<PredictionResponse>("/predict", {
       method: "POST",
@@ -158,7 +158,7 @@ class APIService {
 
   // Otimização de distribuição
   async optimizeDistribution(
-    request: DistributionRequest
+    request: DistributionRequest,
   ): Promise<DistributionResult[]> {
     return this.request<DistributionResult[]>("/distribute", {
       method: "POST",

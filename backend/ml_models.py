@@ -105,7 +105,7 @@ class MLPredictionModel:
         for name, model in models.items():
             model.fit(X_train_scaled, y_train)
 
-            # Predições
+            # Previsões
             y_pred_train = model.predict(X_train_scaled)
             y_pred_test = model.predict(X_test_scaled)
 
@@ -146,7 +146,7 @@ class MLPredictionModel:
         latest_data = self.df.sort_values('Periodo').groupby('Instituicao').tail(1).copy()
 
         if latest_data.empty:
-            raise ValueError("Nenhum dado disponível para predição.")
+            raise ValueError("Nenhum dado disponível para Previsão.")
 
         # Ajustar para o mês/ano desejado
         latest_data['Mes'] = month
@@ -156,7 +156,7 @@ class MLPredictionModel:
         latest_data['Regiao_Encoded'] = self.le_regiao.transform(latest_data['Regiao'])
         latest_data['Instituicao_Encoded'] = self.le_instituicao.transform(latest_data['Instituicao'])
 
-        # Preparar features e fazer predições
+        # Preparar features e fazer Previsões
         X_future = latest_data[self.feature_names].fillna(0)
         X_future_scaled = self.scaler.transform(X_future)
         predictions = np.maximum(self.best_model.predict(X_future_scaled), 0)
@@ -216,12 +216,12 @@ class MLPredictionModel:
 
             print(f"📂 Modelo carregado: {filepath}")
 
-            # IMPORTANTE: Recarregar os dados para permitir predições
+            # IMPORTANTE: Recarregar os dados para permitir Previsões
             print(f"📊 Carregando dados de: {self.data_path}")
             if self.data_path and self.load_data():
-                print(f"✅ Dados carregados com sucesso para predições")
+                print(f"✅ Dados carregados com sucesso para Previsões")
             else:
-                print(f"⚠️ AVISO: Não foi possível carregar dados. Predições podem falhar.")
+                print(f"⚠️ AVISO: Não foi possível carregar dados. Previsões podem falhar.")
                 print(f"   Data path: {self.data_path}")
                 print(f"   Existe? {os.path.exists(self.data_path) if self.data_path else 'N/A'}")
 
@@ -259,7 +259,7 @@ class OptimizedDistributor:
         ]
         self.proxy_factor = np.mean(ratios) if ratios else 0.0
 
-        # 2. Calcular Predições Base (corrigindo zeros)
+        # 2. Calcular Previsões Base (corrigindo zeros)
         self.effective_predictions = {}
         for h in self.hospitals:
             data = self.hospital_data[h]
@@ -319,7 +319,7 @@ class OptimizedDistributor:
 
         for reg, hospitals in regions.items():
             if not hospitals: continue
-            # Identificar Hub (maior predição base)
+            # Identificar Hub (maior Previsão base)
             hub = max(hospitals, key=lambda h: self.effective_predictions[h])
 
             for h in hospitals:
@@ -329,7 +329,7 @@ class OptimizedDistributor:
                 urgencies = self.hospital_data[h].get('urgencies', 0)
                 urgency_demand = urgencies * self.proxy_factor
 
-                # Não podemos mover mais do que a predição total do hospital
+                # Não podemos mover mais do que a Previsão total do hospital
                 current_pred = self.effective_predictions[h]
                 shift_amount = min(urgency_demand, current_pred)
 
@@ -493,7 +493,7 @@ class OptimizedDistributor:
             base_allocation[i] = give
             remaining_stock -= give
 
-        # B. Distribuir restante proporcionalmente à predição efetiva
+        # B. Distribuir restante proporcionalmente à Previsão efetiva
         if remaining_stock > 0:
             predictions = np.array([self.get_effective_pred(h) for h in self.hospitals])
             total_pred = np.sum(predictions)
@@ -510,7 +510,7 @@ class OptimizedDistributor:
                     max_idx = np.argmax(predictions)
                     base_allocation[max_idx] += diff
             else:
-                # Se não há predições mas sobrou stock, alocar ao primeiro
+                # Se não há Previsões mas sobrou stock, alocar ao primeiro
                 base_allocation[0] += remaining_stock
 
         # 2. Gerar população variando dessa base otimizada
@@ -545,7 +545,7 @@ class OptimizedDistributor:
             safety = self.safety_stocks.get(hospital, 0)
 
             # Limite inferior 0 permite ao fitness function penalizar faltas corretamente
-            # Limite superior deve acomodar: Predição expandida OU Safety Stock (o que for maior)
+            # Limite superior deve acomodar: Previsão expandida OU Safety Stock (o que for maior)
             high = max(int(eff_pred * upper_bound_mult), int(safety * 2.0), 50)
 
             gene_space.append({'low': 0, 'high': high})

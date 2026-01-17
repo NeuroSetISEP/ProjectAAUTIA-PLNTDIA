@@ -249,14 +249,14 @@ const ModelMetricsPage = () => {
             <div>
               <h4 className="font-semibold mb-1">MAE (Mean Absolute Error)</h4>
               <p className="text-sm text-muted-foreground">
-                Erro médio absoluto entre predições e valores reais. Quanto menor, melhor. Representa
+                Erro médio absoluto entre Previsões e valores reais. Quanto menor, melhor. Representa
                 o desvio médio em unidades de medicamentos.
               </p>
             </div>
             <div>
               <h4 className="font-semibold mb-1">RMSE (Root Mean Squared Error)</h4>
               <p className="text-sm text-muted-foreground">
-                Similar ao MAE mas penaliza mais erros grandes. Útil para identificar predições
+                Similar ao MAE mas penaliza mais erros grandes. Útil para identificar Previsões
                 muito distantes dos valores reais.
               </p>
             </div>

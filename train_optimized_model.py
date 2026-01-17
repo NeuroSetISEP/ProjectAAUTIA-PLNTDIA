@@ -184,7 +184,7 @@ class OptimizedMLTrainer:
             # Melhor modelo desta família
             best_estimator = grid_search.best_estimator_
 
-            # Predições
+            # Previsões
             y_pred_train = best_estimator.predict(X_train_scaled)
             y_pred_test = best_estimator.predict(X_test_scaled)
 
@@ -383,18 +383,18 @@ class OptimizedMLTrainer:
         ax.legend()
         ax.grid(axis='x', alpha=0.3)
 
-        # 2. Predições vs Real (melhor modelo)
+        # 2. Previsões vs Real (melhor modelo)
         ax = axes[0, 1]
         y_pred = self.training_results[self.best_model_name]['y_pred_test']
         ax.scatter(y_test, y_pred, alpha=0.5, s=20)
 
-        # Linha de predição perfeita
+        # Linha de Previsão perfeita
         max_val = max(y_test.max(), y_pred.max())
-        ax.plot([0, max_val], [0, max_val], 'r--', lw=2, label='Predição Perfeita')
+        ax.plot([0, max_val], [0, max_val], 'r--', lw=2, label='Previsão Perfeita')
 
         ax.set_xlabel('Consumo Real', fontsize=12)
         ax.set_ylabel('Consumo Previsto', fontsize=12)
-        ax.set_title(f'Predições vs Real - {self.best_model_name}', fontsize=14, fontweight='bold')
+        ax.set_title(f'Previsões vs Real - {self.best_model_name}', fontsize=14, fontweight='bold')
         ax.legend()
         ax.grid(alpha=0.3)
 

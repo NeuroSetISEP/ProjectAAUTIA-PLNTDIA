@@ -319,6 +319,47 @@ class OptimizedMLTrainer:
         print(f"   Modelo: {self.best_model_name}")
         print(f"   R² Test: {self.training_results[self.best_model_name]['r2_test']:.4f}")
         print(f"   MAE Test: {self.training_results[self.best_model_name]['mae_test']:.2f}")
+    def create_all_models_visualization(self, X_test_scaled, y_test):
+    import math
+
+    models = list(self.training_results.keys())
+    n_models = len(models)
+    cols = 2
+    rows = math.ceil(n_models / cols)
+
+    fig, axes = plt.subplots(rows, cols, figsize=(14, rows * 5))
+    axes = axes.flatten()
+
+    for i, model_name in enumerate(models):
+        ax = axes[i]
+        y_pred = self.training_results[model_name]['y_pred_test']
+
+        ax.scatter(y_test, y_pred, alpha=0.5, s=20)
+        max_val = max(y_test.max(), y_pred.max())
+        ax.plot([0, max_val], [0, max_val], 'r--')
+
+        r2 = self.training_results[model_name]['r2_test']
+        mae = self.training_results[model_name]['mae_test']
+
+        ax.set_title(
+            f"{model_name}\nR²={r2:.3f} | MAE={mae:.2f}",
+            fontsize=12,
+            fontweight='bold'
+        )
+
+        ax.set_xlabel("Consumo Real")
+        ax.set_ylabel("Consumo Predito")
+        ax.grid(alpha=0.3)
+
+    # Remove subplots vazios
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout()
+    plt.savefig("all_models_predictions.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+    print("✅ Gráfico comparativo salvo: all_models_predictions.png")
 
     def create_visualizations(self, X_test_scaled, y_test):
         """Cria visualizações dos resultados"""
@@ -414,6 +455,7 @@ def main():
     X, y = trainer.engineer_features()
     X_test_scaled, y_test = trainer.train_with_grid_search(X, y)
     trainer.analyze_results(X_test_scaled, y_test)
+    trainer.create_all_models_visualization(X_test_scaled, y_test)
     trainer.create_visualizations(X_test_scaled, y_test)
     trainer.save_model(str(model_path))
 
